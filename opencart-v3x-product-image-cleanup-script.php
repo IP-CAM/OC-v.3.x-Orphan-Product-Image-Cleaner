@@ -49,8 +49,9 @@ if ($action === 'delete') {
 }
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>Orphan Product Image Cleaner for Opencart v3.x</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 2rem }
