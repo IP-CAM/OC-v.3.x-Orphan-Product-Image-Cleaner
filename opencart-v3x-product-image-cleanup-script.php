@@ -159,7 +159,7 @@ if ($action === 'delete' && empty($errors)) {
         
         <?php elseif ($action === 'dry_run'): ?>
             <h2>Dry Run Results</h2>
-            <p>Found <?php echo count($orphans)); ?> orphan files in <?php echo htmlspecialchars($baseDir); ?></p>
+            <p>Found <?php echo count($orphans); ?> orphan files in <?php echo htmlspecialchars($baseDir); ?></p>
             
             <?php if (!empty($orphans)): ?>
                 <pre><?php echo htmlspecialchars(implode("\n", $orphans)); ?></pre>
