@@ -12,11 +12,11 @@ $deleted = [];
 $errors = [];
 $orphans = [];
 $action = isset($_POST['action']) ? $_POST['action'] : '';
-$baseDir = rtrim(DIR_IMAGE, '/') . '/';
+$baseDir = rtrim(DIR_IMAGE, '/') . '/catalog/'; // Focus on catalog directory
 $subdirectories = [];
 $selectedDir = '';
 
-// Get all subdirectories in image directory
+// Get all subdirectories in catalog directory
 function getSubdirectories($path) {
     $dirs = [];
     try {
@@ -32,51 +32,51 @@ function getSubdirectories($path) {
     sort($dirs);
     return $dirs;
 }
-$subdirectories = getSubdirectories(DIR_IMAGE);
+$subdirectories = getSubdirectories($baseDir);
 
 // Process directory input
 if (!empty($_POST['directory'])) {
     $selectedDir = rtrim($_POST['directory'], '/');
-    $fullPath = realpath(DIR_IMAGE . '/' . $selectedDir);
+    $fullPath = realpath($baseDir . $selectedDir);
     
-    // Validate directory is within image directory
+    // Validate directory is within catalog directory
     if ($fullPath && 
         is_dir($fullPath) && 
-        strpos($fullPath, realpath(DIR_IMAGE)) === 0
+        strpos($fullPath, realpath($baseDir)) === 0
     ) {
-        $baseDir = $fullPath . '/';
+        $scanDir = $fullPath . '/';
     } else {
         $errors[] = "Invalid directory: " . htmlspecialchars($selectedDir);
-        $baseDir = DIR_IMAGE;
+        $scanDir = $baseDir;
     }
+} else {
+    $scanDir = $baseDir;
 }
 
 // Fetch used images from database
 $usedImages = [];
-if (empty($errors)) {
-    $result = $db->query("SELECT image FROM $productTable WHERE image != '' UNION SELECT image FROM $productImageTable WHERE image != ''");
-    if ($result) {
-        while ($row = $result->fetch_assoc()) {
-            $usedImages[] = $row['image'];
-        }
-        $usedImages = array_unique($usedImages);
-    } else {
-        $errors[] = "Database error: " . $db->error;
+$result = $db->query("SELECT image FROM $productTable WHERE image != '' UNION SELECT image FROM $productImageTable WHERE image != ''");
+if ($result) {
+    while ($row = $result->fetch_assoc()) {
+        $usedImages[] = $row['image'];
     }
+    $usedImages = array_unique($usedImages);
+} else {
+    $errors[] = "Database error: " . $db->error;
 }
 
 // Scan for orphan files
 if (empty($errors)) {
     try {
         $iterator = new RecursiveIteratorIterator(
-            new RecursiveDirectoryIterator($baseDir, FilesystemIterator::SKIP_DOTS)
+            new RecursiveDirectoryIterator($scanDir, FilesystemIterator::SKIP_DOTS)
         );
 
         foreach ($iterator as $file) {
             if ($file->isFile() && in_array(strtolower($file->getExtension()), ['jpg','jpeg','png','gif'])) {
-                // Get relative path from main image directory
+                // Get relative path from catalog directory
                 $fullPath = $file->getRealPath();
-                $relativePath = ltrim(str_replace(realpath(DIR_IMAGE), '', $fullPath), '/');
+                $relativePath = 'catalog/' . ltrim(str_replace($baseDir, '', $fullPath), '/');
                 
                 if (!in_array($relativePath, $usedImages)) {
                     $orphans[] = $fullPath;
@@ -112,6 +112,7 @@ if ($action === 'delete' && empty($errors)) {
         pre { background: #f8f9fa; padding: 1rem; overflow-x: auto }
         .dir-select { margin: 1rem 0 }
         .dir-list { margin: 1rem 0; padding: 0.5rem; border: 1px solid #ddd }
+        .dir-button { margin: 0.2rem; padding: 0.3rem 0.5rem }
     </style>
 </head>
 <body>
@@ -134,15 +135,16 @@ if ($action === 'delete' && empty($errors)) {
 
     <form method="POST">
         <div class="dir-select">
-            <h3>Select Directory (relative to <?php echo htmlspecialchars(DIR_IMAGE); ?>)</h3>
+            <h3>Select Directory (inside <?php echo htmlspecialchars(str_replace(DIR_IMAGE, 'image/', $baseDir)); ?>)</h3>
             <input type="text" name="directory" value="<?php echo htmlspecialchars($selectedDir); ?>" 
                    placeholder="Enter subdirectory path">
             
             <div class="dir-list">
                 <strong>Available directories:</strong><br>
                 <?php foreach ($subdirectories as $dir): ?>
-                    <button type="button" onclick="document.querySelector('[name=directory]').value = '<?php echo htmlspecialchars($dir); ?>'">
-                        <?php echo htmlspecialchars($dir); ?>
+                    <button type="button" class="dir-button" 
+                            onclick="document.querySelector('[name=directory]').value = '<?php echo htmlspecialchars($dir); ?>'">
+                        📁 <?php echo htmlspecialchars($dir); ?>
                     </button>
                 <?php endforeach; ?>
             </div>
@@ -159,7 +161,8 @@ if ($action === 'delete' && empty($errors)) {
         
         <?php elseif ($action === 'dry_run'): ?>
             <h2>Dry Run Results</h2>
-            <p>Found <?php echo count($orphans); ?> orphan files in <?php echo htmlspecialchars($baseDir); ?></p>
+            <p>Found <?php echo count($orphans); ?> orphan files in:<br>
+            <code><?php echo htmlspecialchars($scanDir); ?></code></p>
             
             <?php if (!empty($orphans)): ?>
                 <pre><?php echo htmlspecialchars(implode("\n", $orphans)); ?></pre>
